@@ -1,0 +1,5 @@
+//install wreckfest server
+login anonymous
+force_install_dir /home/wreckfest
+app_update 361580 validate
+quit

@@ -3,10 +3,10 @@ on:
   push:
     branches:
       - 'feature/*'
-      - '!main'
+      - 'master'
 
 jobs:
-  Scan-For_Secrets:
+  Scan-For-Secrets:
     runs-on: ubuntu-18.04
     name: Secrets Check
     steps:

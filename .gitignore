@@ -1,0 +1,5 @@
+.env
+*.tfvars
+/worlds
+
+*.json

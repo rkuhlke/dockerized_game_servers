@@ -1,6 +1,0 @@
-.env
-*.tfvars
-/worlds
-.vscode
-backend.tf
-.terraform*

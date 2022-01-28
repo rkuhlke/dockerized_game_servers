@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -6,7 +6,7 @@ RUN apt-get update \
       && apt-get install wget -y \
       && dpkg --add-architecture i386 \
       && apt-get update \
-      && apt-get install lib32gcc1 -y \
+      && apt-get install lib32gcc-s1 -y \
       && apt-get install curl -y \
       && apt-get install unzip \
       && useradd ec2-user \

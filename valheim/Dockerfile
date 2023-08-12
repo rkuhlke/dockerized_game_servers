@@ -32,6 +32,8 @@ WORKDIR /home/valheim
 
 COPY start_server.sh .
 
+COPY adminlist.txt /home/valheim/config/adminlist.txt
+
 RUN chmod +x start_server.sh
 
 ENTRYPOINT [ "./start_server.sh" ]

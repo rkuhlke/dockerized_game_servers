@@ -21,5 +21,5 @@ run:
 deploy:
 	make del
 	make build
-	../../utilities/bin/publishecr.sh
+	../utilities/bin/publishecr.sh
 	

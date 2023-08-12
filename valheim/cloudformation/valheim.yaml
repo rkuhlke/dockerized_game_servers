@@ -1,0 +1,36 @@
+AWSTemplateVersion: '2010-09-09'
+Description: Deploys the Valhiem Server
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  pBucketName:
+    Description: Name of Template Buckets
+    Type: String
+  
+  pTemplateURL:
+    Description: URL to the Transformed Template this stack was deployed with
+    Type: String
+
+  pVpcId:
+    Description: VPC ID
+    Type: String
+  
+  pSubnetId:
+    Description: Subnet ID
+    Type: String
+  
+  pCPU:
+    Description: CPU Capacity of the ECS Task
+    Type: Number
+  
+  pMemory:
+    Description: Memory Capacity of the ECS Task
+    Type: Number
+  
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}-Cluster"
+  
+   

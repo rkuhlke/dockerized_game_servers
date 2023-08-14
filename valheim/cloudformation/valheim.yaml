@@ -1,4 +1,4 @@
-AWSTemplateVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: Deploys the Valhiem Server
 Transform: AWS::Serverless-2016-10-31
 
@@ -19,6 +19,10 @@ Parameters:
     Description: Subnet ID
     Type: String
   
+  pPrivateSubnetId:
+    Description: Private Subnet ID
+    Type: String
+  
   pCPU:
     Description: CPU Capacity of the ECS Task
     Type: Number
@@ -27,10 +31,239 @@ Parameters:
     Description: Memory Capacity of the ECS Task
     Type: Number
   
+  myIPCidr:
+    Description: My IP Cidr
+    Type: String
+  
 Resources:
+  ECSExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+           - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-server-name*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-server-password*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-world-name*'
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: EFSReadWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticfilesystem:ClientMount
+                  - elasticfilesystem:ClientRootAccess
+                  - elasticfilesystem:ClientWrtie
+                  - kms:Decrypt
+                Resource: '*'
+  
+  EFSVolume:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      BackupPolicy:
+        Status: ENABLED
+      BypassPolicyLockoutSafetyCheck: false
+      Encrypted: true
+      FileSystemPolicy: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:ClientMount
+              - elasticfilesystem:ClientRootAccess
+              - elasticfilesystem:ClientWrtie
+            Principal:
+              AWS: !GetAtt ECSTaskRole.Arn
+      PerformanceMode: generalPurpose
+      ThroughputMode: elastic
+  
+  EFSMountTarget:
+    DependsOn:
+      - EFSVolume
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSVolume # Required
+      SecurityGroups: # Required
+        - !GetAtt EFSSecurityGroup.GroupId
+      SubnetId: !Ref pSubnetId # Required
+
+  EFSAccessPoint:
+    DependsOn:
+      - EFSVolume
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref EFSVolume # Required
+      PosixUser:
+        Gid: '777'
+        Uid: '777'
+      RootDirectory:
+        Path: /worlds
+  
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-EFS-SecurityGroup'
+      GroupDescription: Allows EFS Inbound Traffic
+      VpcId: !Ref pVpcId
+  
+  EFSSecurityGroupIngress:
+    DependsOn:
+      - EFSSecurityGroup
+      - ECSSecurityGroup
+      - EFSVolume
+      - EFSMountTarget
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: 2049
+      GroupId: !Ref EFSSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref ECSSecurityGroup
+      ToPort: 2049
+
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 90
+      LogGroupName: !Sub '${AWS::StackName}-Log-Group'
+  
+  ECSSecurityGroup:
+    DependsOn: 
+      - EFSVolume
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-ECS-SecurityGroup'
+      GroupDescription: Allows EFS Access and Valhiem Access 
+      VpcId: !Ref pVpcId
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 2456
+          ToPort: 2456
+          CidrIp: !Ref myIPCidr
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+  
+  ECSSecurityGroupEgress:
+    DependsOn:
+      - EFSVolume
+      - EFSMountTarget
+      - ECSSecurityGroup
+      - EFSSecurityGroup
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      DestinationSecurityGroupId: !Ref EFSSecurityGroup
+      FromPort: 2049
+      GroupId: !Ref ECSSecurityGroup
+      IpProtocol: tcp
+      ToPort: 2049
+
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Sub "${AWS::StackName}-Cluster"
+
+  ECSTaskDefinition:
+    DependsOn:
+      - EFSVolume
+      - EFSMountTarget
+      - EFSAccessPoint
+      - ECSSecurityGroup
+      - EFSSecurityGroup
+      - ECSCluster
+      - ECSLogGroup
+      - ECSExecutionRole
+      - ECSTaskRole
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${AWS::StackName}-Task-Definition'
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      Cpu: !Ref pCPU
+      Memory: !Ref pMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Volumes:
+        - Name: worldFiles
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref EFSVolume
+            AuthorizationConfig:
+              IAM: ENABLED
+              AccessPointId: !Ref EFSAccessPoint
+            TransitEncryption: ENABLED
+            RootDirectory: '/'
+      ContainerDefinitions:
+        - Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/valheim-prod-server-ecr-repo:latest'
+          Name: Valheim-Server
+          Essential: true
+          Secrets:
+            - Name: serverName
+              ValueFrom: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-server-name-HUO67f'
+            - Name: serverPassword
+              ValueFrom: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-server-password-4VAOiu'
+            - Name: worldName
+              ValueFrom: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:valheim-world-name-GGqlLg'
+          PortMappings:
+            - ContainerPort: 2456
+              HostPort: 2456
+              Protocol: udp   
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Sub '${AWS::Region}'
+              awslogs-stream-prefix: ecs
+          MountPoints:
+            - ContainerPath: '/home/valheim/worlds/local'
+              SourceVolume: worldFiles
+
+Outputs:
+  StackName:
+    Value:
+      Ref: AWS::StackName
+    Description: Stack Name
   
-   
+  TemplateURL:
+    Description: URL to the Transformed Template this stack was deployed with
+    Value:
+      Ref: pTemplateURL
+  
+  BucketName:
+    Description: Name of the S3 Bucket where all files are stored
+    Value:
+      Ref: pBucketName

@@ -10,7 +10,12 @@ RUN apt-get update \
       && apt-get install curl -y \
       && apt-get install unzip \
       && useradd ec2-user \
-      && apt-get install sudo -y
+      && apt-get install sudo -y \
+      && apt-get install python3 -y \
+      && apt-get install python3-pip -y
+
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install boto3 botocore --upgrade
 
 WORKDIR /home
 

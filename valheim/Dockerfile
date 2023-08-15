@@ -12,7 +12,12 @@ RUN apt-get update \
       && useradd ec2-user \
       && apt-get install sudo -y \
       && apt-get install python3 -y \
-      && apt-get install python3-pip -y
+      && apt-get install python3-pip -y \
+      && apt-get install git binutils -y
+
+RUN git clone https://github.com/aws/efs-utils
+
+RUN cd /aws/efs-utils && ./build-deb.sh && apt-get install ./build/amazon-efs-utils*deb -y
 
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install boto3 botocore --upgrade

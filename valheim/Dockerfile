@@ -33,11 +33,13 @@ RUN /bin/bash ./steamcmd.sh +runscript install_valheim.txt
 EXPOSE 2456/udp
 EXPOSE 2457/udp
 
-WORKDIR /home/valheim
+WORKDIR /root/.config/unity3d/IronGate/Valheim
 
 COPY start_server.sh .
+RUN mkdir -p /root/.config/unity3d/IronGate/Valheim/
+RUN chmod 777 /root/.config/unity3d/IronGate/Valheim/ -R
 
-COPY adminlist.txt /home/valheim/config/adminlist.txt
+COPY adminlist.txt /root/.config/unity3d/IronGate/Valheim/config/adminlist.txt
 
 RUN chmod +x start_server.sh
 

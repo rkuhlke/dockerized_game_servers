@@ -106,7 +106,7 @@ Resources:
               - elasticfilesystem:ClientRootAccess
               - elasticfilesystem:ClientWrtie
             Principal:
-              AWS: !GetAtt ECSTaskRole.Arn
+              AWS: '*'
       PerformanceMode: generalPurpose
       ThroughputMode: elastic
   
@@ -133,7 +133,7 @@ Resources:
         CreationInfo:
           OwnerGid: "33"
           OwnerUid: "33"
-          Permissions: "0755"
+          Permissions: "777"
         Path: /worlds
   
   EFSSecurityGroup:
@@ -253,8 +253,9 @@ Resources:
               awslogs-region: !Sub '${AWS::Region}'
               awslogs-stream-prefix: ecs
           MountPoints:
-            - ContainerPath: '/home/valheim/worlds/local'
+            - ContainerPath: '/root/.config/unity3d/IronGate/Valheim/worlds_local/'
               SourceVolume: worldFiles
+              ReadOnly: false
 
 Outputs:
   StackName:

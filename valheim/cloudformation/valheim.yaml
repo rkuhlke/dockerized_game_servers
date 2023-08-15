@@ -127,9 +127,13 @@ Resources:
     Properties:
       FileSystemId: !Ref EFSVolume # Required
       PosixUser:
-        Gid: '777'
-        Uid: '777'
+        Gid: '33'
+        Uid: '33'
       RootDirectory:
+        CreationInfo:
+          OwnerGid: "33"
+          OwnerUid: "33"
+          Permissions: "0755"
         Path: /worlds
   
   EFSSecurityGroup:
